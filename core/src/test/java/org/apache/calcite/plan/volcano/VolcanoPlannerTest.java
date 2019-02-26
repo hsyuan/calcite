@@ -332,7 +332,6 @@ public class VolcanoPlannerTest {
         resultLeaf.label);
   }
 
-  @Ignore("CALCITE-2592 EnumerableMergeJoin is never taken")
   @Test public void testMergeJoin() {
     VolcanoPlanner planner = new VolcanoPlanner();
     planner.addRelTraitDef(ConventionTraitDef.INSTANCE);

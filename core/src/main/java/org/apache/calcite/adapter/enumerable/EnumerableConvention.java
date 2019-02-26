@@ -62,7 +62,7 @@ public enum EnumerableConvention implements Convention {
 
   public boolean useAbstractConvertersForConversion(RelTraitSet fromTraits,
       RelTraitSet toTraits) {
-    return false;
+    return true;
   }
 }
 
