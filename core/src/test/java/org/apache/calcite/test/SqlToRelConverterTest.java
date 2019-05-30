@@ -179,7 +179,7 @@ public class SqlToRelConverterTest extends SqlToRelTestBase {
 
   @Test public void testJoinOnExpression() {
     final String sql = "SELECT * FROM emp\n"
-        + "JOIN dept on emp.deptno + 1 = dept.deptno - 2";
+        + ", dept where emp.deptno + 1 = dept.deptno - 2";
     sql(sql).ok();
   }
 

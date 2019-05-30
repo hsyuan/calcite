@@ -75,6 +75,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.stream.IntStream;
 
 import static org.apache.calcite.rex.RexUtil.andNot;
 import static org.apache.calcite.rex.RexUtil.removeAll;
@@ -1231,7 +1232,7 @@ public class SubstitutionVisitor {
       if (!target.groupSet.contains(query.groupSet)) {
         return null;
       }
-      MutableRel result = unifyAggregates(query, target);
+      MutableRel result = unifyAggregates(query, target, null);
       if (result == null) {
         return null;
       }
@@ -1250,7 +1251,7 @@ public class SubstitutionVisitor {
   }
 
   public static MutableRel unifyAggregates(MutableAggregate query,
-      MutableAggregate target) {
+      MutableAggregate target, Mappings.TargetMapping mapping) {
     MutableRel result;
     if (query.groupSets.equals(target.groupSets)) {
       // Same level of aggregation. Generate a project.
@@ -1299,7 +1300,24 @@ public class SubstitutionVisitor {
                 aggregateCall.collation, aggregateCall.type,
                 aggregateCall.name));
       }
-      result = MutableAggregate.of(target, groupSet, groupSets,
+      MutableRel resultInput = target;
+      if (mapping != null) {
+        List<RexNode> list = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        List<RelDataTypeField> fields = target.rowType.getFieldList();
+        for (int i = 0; i < target.rowType.getFieldCount(); i++) {
+          if (i >= mapping.getTargetCount() || mapping.getSourceOpt(i) == i) {
+            list.add(RexInputRef.of(i, fields));
+            names.add(fields.get(i).getName());
+          } else {
+            int j = mapping.getSourceOpt(i);
+            list.add(RexInputRef.of(j, fields));
+            names.add(fields.get(j).getName());
+          }
+        }
+        resultInput = MutableProject.of(target, list, names);
+      }
+      result = MutableAggregate.of(resultInput, groupSet, groupSets,
           aggregateCalls);
     } else {
       return null;
@@ -1340,9 +1358,14 @@ public class SubstitutionVisitor {
       if (mapping == null) {
         return null;
       }
+      if (mapping.getSourceCount() < mapping.getTargetCount()) {
+        return null;
+      }
+      boolean needsProj = IntStream.range(0, mapping.getTargetCount())
+          .anyMatch(i -> mapping.getSourceOpt(i) != i);
       final MutableAggregate aggregate2 =
           permute(query, project.getInput(), mapping.inverse());
-      final MutableRel result = unifyAggregates(aggregate2, target);
+      final MutableRel result = unifyAggregates(aggregate2, target, needsProj ? mapping : null);
       return result == null ? null : call.result(result);
     }
   }

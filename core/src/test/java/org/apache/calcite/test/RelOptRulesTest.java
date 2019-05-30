@@ -1856,7 +1856,7 @@ public class RelOptRulesTest extends RelOptTestBase {
         .build();
     checkPlanning(program,
         "select e1.ename from emp e1, dept d, emp e2 "
-            + "where e1.deptno = d.deptno and e1.empno = e2.empno");
+            + "where e1.deptno = d.deptno+1 and e1.empno = e2.empno");
   }
 
   @Test public void testPushSemiJoinPastJoinRuleRight() throws Exception {

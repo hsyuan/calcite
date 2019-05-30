@@ -584,6 +584,18 @@ public class MaterializationTest {
                 + "    EnumerableTableScan(table=[[hr, m0]])"));
   }
 
+  @Test public void testAggregateGroupSetsOrder() {
+    checkMaterialize(
+        "select \"empid\", \"deptno\", count(*) as c, sum(\"salary\") as s from \"emps\" "
+            + "group by \"empid\", \"deptno\"",
+        "select count(*) + 1 as c,  \"deptno\" from \"emps\" group by cube(\"deptno\", \"empid\")",
+        HR_FKUK_MODEL,
+        CalciteAssert.checkResultContains(
+            "EnumerableCalc(expr#0..2=[{inputs}], expr#3=[1], expr#4=[+($t2, $t3)], C=[$t4], deptno=[$t1])\n"
+                + "  EnumerableAggregate(group=[{0, 1}], groups=[[{0, 1}, {0}, {1}, {}]], agg#0=[$SUM0($2)])\n"
+                + "    EnumerableTableScan(table=[[hr, m0]])"));
+  }
+
   /** Aggregation materialization with a project. */
   @Test public void testAggregateProject() {
     // Note that materialization does not start with the GROUP BY columns.
