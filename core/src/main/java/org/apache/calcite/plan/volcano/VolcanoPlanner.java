@@ -499,7 +499,8 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
       return rel2;
     }
 
-    return rel2.set.getOrCreateSubset(rel.getCluster(), toTraits.simplify());
+    return rel2.set.getOrCreateSubset(
+        rel.getCluster(), toTraits, true);
   }
 
   public RelOptPlanner chooseDelegate() {
