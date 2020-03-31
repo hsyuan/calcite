@@ -67,4 +67,8 @@ public class CalcRemoveRule extends RelOptRule implements SubstitutionRule {
             input,
             calc.getTraitSet()));
   }
+
+  @Override public boolean autoPruneOld() {
+    return true;
+  }
 }

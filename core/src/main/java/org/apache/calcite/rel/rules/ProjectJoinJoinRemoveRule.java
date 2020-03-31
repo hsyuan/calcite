@@ -139,4 +139,8 @@ public class ProjectJoinJoinRemoveRule extends RelOptRule
     relBuilder.push(join).project(newExprs);
     call.transformTo(relBuilder.build());
   }
+
+  @Override public boolean autoPruneOld() {
+    return true;
+  }
 }

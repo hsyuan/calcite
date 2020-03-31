@@ -18,6 +18,7 @@ package org.apache.calcite.rel.rules;
 
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.SubstitutionRule;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.RelFactories;
 import org.apache.calcite.rel.logical.LogicalCalc;
@@ -36,7 +37,7 @@ import org.apache.calcite.tools.RelBuilderFactory;
  *
  * @see FilterMergeRule
  */
-public class FilterCalcMergeRule extends RelOptRule {
+public class FilterCalcMergeRule extends RelOptRule implements SubstitutionRule {
   //~ Static fields/initializers ---------------------------------------------
 
   public static final FilterCalcMergeRule INSTANCE =
@@ -90,5 +91,9 @@ public class FilterCalcMergeRule extends RelOptRule {
     final LogicalCalc newCalc =
         LogicalCalc.create(calc.getInput(), mergedProgram);
     call.transformTo(newCalc);
+  }
+
+  @Override public boolean autoPruneOld() {
+    return true;
   }
 }
