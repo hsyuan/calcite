@@ -123,8 +123,4 @@ public class ProjectJoinRemoveRule extends RelOptRule implements SubstitutionRul
     }
     call.transformTo(node);
   }
-
-  @Override public boolean autoPruneOld() {
-    return true;
-  }
 }

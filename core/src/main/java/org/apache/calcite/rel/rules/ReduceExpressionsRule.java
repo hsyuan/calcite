@@ -558,10 +558,6 @@ public abstract class ReduceExpressionsRule extends RelOptRule
 
   //~ Methods ----------------------------------------------------------------
 
-  @Override public boolean autoPruneOld() {
-    return true;
-  }
-
   /**
    * Reduces a list of expressions.
    *

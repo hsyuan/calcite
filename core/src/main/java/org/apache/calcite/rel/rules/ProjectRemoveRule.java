@@ -75,10 +75,6 @@ public class ProjectRemoveRule extends RelOptRule implements SubstitutionRule {
     call.transformTo(child);
   }
 
-  @Override public boolean autoPruneOld() {
-    return true;
-  }
-
   /**
    * Returns the child of a project if the project is trivial, otherwise
    * the project itself.

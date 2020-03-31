@@ -84,10 +84,6 @@ public class FilterMergeRule extends RelOptRule implements SubstitutionRule {
     call.transformTo(relBuilder.build());
   }
 
-  @Override public boolean autoPruneOld() {
-    return true;
-  }
-
   /**
    * Creates a RexProgram corresponding to a LogicalFilter
    *
