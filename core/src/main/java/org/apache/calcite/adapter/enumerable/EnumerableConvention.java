@@ -18,10 +18,14 @@ package org.apache.calcite.adapter.enumerable;
 
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.ConventionTraitDef;
+import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitDef;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.core.RelFactories;
+import org.apache.calcite.tools.RelBuilder;
+import org.apache.calcite.tools.RelBuilderFactory;
 
 /**
  * Family of calling conventions that return results as an
@@ -29,6 +33,16 @@ import org.apache.calcite.plan.RelTraitSet;
  */
 public enum EnumerableConvention implements Convention {
   INSTANCE;
+
+  private static RelBuilderFactory factory = RelBuilder.proto(
+      (RelFactories.FilterFactory) (input, condition, variablesSet)
+          -> EnumerableFilter.create(input, condition),
+      (RelFactories.SortFactory) (input, collation, offset, fetch)
+          -> EnumerableSort.create(input, collation, offset, fetch));
+
+  public RelBuilder getRelBuilder(RelOptCluster cluster) {
+    return factory.create(cluster, null);
+  }
 
   /** Cost of an enumerable node versus implementing an equivalent node in a
    * "typical" calling convention. */
