@@ -20,6 +20,7 @@ import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelOptRuleOperand;
 import org.apache.calcite.plan.RelOptUtil;
+import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.SubstitutionRule;
 import org.apache.calcite.plan.hep.HepRelVertex;
 import org.apache.calcite.plan.volcano.RelSubset;
@@ -41,6 +42,8 @@ import org.apache.calcite.rex.RexDynamicParam;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.calcite.tools.RelBuilderFactory;
+
+import com.google.common.collect.ImmutableList;
 
 import java.util.List;
 import java.util.function.Predicate;
@@ -400,7 +403,13 @@ public abstract class PruneEmptyRules {
 
     public void onMatch(RelOptRuleCall call) {
       SingleRel single = call.rel(0);
-      call.transformTo(call.builder().push(single).empty().build());
+      RelNode rel = call.builder().push(single).empty().build();
+      RelTraitSet traits = single.getTraitSet();
+      if (rel.getConvention() != null) {
+        traits = traits.replace(rel.getConvention());
+      }
+      rel = rel.copy(traits, ImmutableList.of());
+      call.transformTo(rel);
     }
   }
 }

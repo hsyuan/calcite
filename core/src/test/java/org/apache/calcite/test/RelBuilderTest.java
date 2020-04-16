@@ -511,6 +511,23 @@ public class RelBuilderTest {
     assertThat(root, hasTree(expected));
   }
 
+  @Test void testEmptyValues() throws Exception {
+    final RelBuilder builder = RelBuilder.create(config().build());
+    final RelNode root =
+        builder
+            .scan("DEPT")
+            .filter(builder.literal(false)) // generates an empty LogicalValues
+            .sort(
+                builder.field("DNAME"),
+                builder.field("DEPTNO"))
+            .build();
+    try (PreparedStatement preparedStatement = RelRunners.run(root)) {
+      final String s = CalciteAssert.toString(preparedStatement.executeQuery());
+      final String result = "";
+      assertThat(s, is(result));
+    }
+  }
+
   /** Test case for
    * <a href="https://issues.apache.org/jira/browse/CALCITE-2730">[CALCITE-2730]
    * RelBuilder incorrectly simplifies a filter with duplicate conjunction to
