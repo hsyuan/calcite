@@ -2592,16 +2592,11 @@ class MaterializationTest {
             + "from \"emps\"\n"
             + "join \"depts\" on \"depts\".\"deptno\" = \"empid\" group by \"empid\", \"depts\".\"deptno\"")
         .withResultContains(
-            "EnumerableCalc(expr#0..2=[{inputs}], EXPR$0=[$t2])\n"
-              + "  EnumerableAggregate(group=[{0, 1}], EXPR$0=[$SUM0($2)])\n"
-              + "    EnumerableCalc(expr#0..1=[{inputs}], expr#2=[1], proj#0..2=[{exprs}])\n"
-              + "      EnumerableMergeJoin(condition=[=($0, $1)], joinType=[inner])\n"
-              + "        EnumerableSort(sort0=[$0], dir0=[ASC])\n"
-              + "          EnumerableCalc(expr#0..4=[{inputs}], empid=[$t0])\n"
-              + "            EnumerableTableScan(table=[[hr, emps]])\n"
-              + "        EnumerableSort(sort0=[$0], dir0=[ASC])\n"
-              + "          EnumerableCalc(expr#0..3=[{inputs}], deptno=[$t0])\n"
-              + "            EnumerableTableScan(table=[[hr, depts]])")
+            "EnumerableCalc(expr#0..1=[{inputs}], EXPR$0=[$t1])\n"
+                + "  EnumerableAggregate(group=[{1}], EXPR$0=[$SUM0($3)])\n"
+                + "    EnumerableHashJoin(condition=[=($1, $4)], joinType=[inner])\n"
+                + "      EnumerableTableScan(table=[[hr, m0]])\n"
+                + "      EnumerableTableScan(table=[[hr, depts]])")
         .ok();
   }
 
