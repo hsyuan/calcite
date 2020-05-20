@@ -136,7 +136,9 @@ public class VolcanoRuleCall extends RelOptRuleCall {
         volcanoPlanner.ensureRegistered(
             entry.getKey(), entry.getValue());
       }
-      volcanoPlanner.ensureRegistered(rel, rels[0]);
+      RelSubset subset = volcanoPlanner.ensureRegistered(rel, rels[0]);
+      assert subset != null;
+      // then add breakpoint here, check subset
       rels[0].getCluster().invalidateMetadataQuery();
 
       if (volcanoPlanner.getListener() != null) {

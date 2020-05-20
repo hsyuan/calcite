@@ -16,6 +16,7 @@
  */
 package org.apache.calcite.rel.rules;
 
+import org.apache.calcite.adapter.enumerable.EnumerableSort;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelCollation;
@@ -48,11 +49,15 @@ import java.util.List;
  * sorted inputs; and allowing the sort to be performed on a possibly smaller
  * result.
  */
-public class SortJoinCopyRule extends RelOptRule implements TransformationRule {
+public class SortJoinCopyRule extends RelOptRule {
 
   public static final SortJoinCopyRule INSTANCE =
       new SortJoinCopyRule(LogicalSort.class,
           LogicalJoin.class, RelFactories.LOGICAL_BUILDER);
+
+  public static final SortJoinCopyRule PHYSICAL_INSTANCE =
+      new SortJoinCopyRule(EnumerableSort.class,
+          Join.class, RelFactories.LOGICAL_BUILDER);
 
   //~ Constructors -----------------------------------------------------------
 
@@ -160,6 +165,7 @@ public class SortJoinCopyRule extends RelOptRule implements TransformationRule {
         sort.offset,
         sort.fetch);
 
+    // add breakpoint here
     call.transformTo(sortCopy);
   }
 }

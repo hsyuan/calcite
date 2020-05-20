@@ -6736,9 +6736,35 @@ class RelOptRulesTest extends RelOptTestBase {
         .build();
     final String sql = "select * from sales.emp join sales.dept on\n"
         + "sales.emp.deptno = sales.dept.deptno order by sal";
-    sql(sql).withPre(preProgram)
-        .withRule(SortJoinCopyRule.INSTANCE)
+    sql0(sql).withPre(preProgram)
         .check();
+  }
+
+  Sql sql0(String sql) {
+    VolcanoPlanner planner = new VolcanoPlanner();
+    planner.setTopDownOpt(false);
+    planner.addRelTraitDef(ConventionTraitDef.INSTANCE);
+    planner.addRelTraitDef(RelCollationTraitDef.INSTANCE);
+
+    RelOptUtil.registerDefaultRules(planner, false, false);
+
+    // Keep deterministic join order
+    planner.removeRule(JoinCommuteRule.INSTANCE);
+
+    // Always use merge join
+    planner.removeRule(EnumerableRules.ENUMERABLE_JOIN_RULE);
+    planner.removeRule(EnumerableRules.ENUMERABLE_CALC_RULE);
+    planner.addRule(SortJoinCopyRule.PHYSICAL_INSTANCE);
+
+    // Always use sorted agg
+    planner.removeRule(EnumerableRules.ENUMERABLE_AGGREGATE_RULE);
+    planner.addRule(EnumerableRules.ENUMERABLE_SORTED_AGGREGATE_RULE);
+
+    Tester tester = createTester().withDecorrelation(true)
+        .withClusterFactory(cluster -> RelOptCluster.create(planner, cluster.getRexBuilder()));
+
+    return new Sql(tester, sql, null, planner,
+        ImmutableMap.of(), ImmutableList.of());
   }
 
   @Test void testSortJoinCopyInnerJoinOrderByLimit() {
