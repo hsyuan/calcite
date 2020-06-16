@@ -81,12 +81,13 @@ public class HepRelVertex extends AbstractRelNode {
   }
 
   @Override public boolean equals(Object obj) {
-    // todo: ?????
-    return this == obj;
+    return this == obj
+        || (obj instanceof HepRelVertex
+            && this.currentRel.equals(((HepRelVertex) obj).currentRel));
   }
 
   @Override public int hashCode() {
-    return id;
+    return currentRel.hashCode();
   }
 
   /**

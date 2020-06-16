@@ -51,12 +51,14 @@ import org.apache.calcite.util.graph.Graphs;
 import org.apache.calcite.util.graph.TopologicalOrderIterator;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -512,7 +514,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
     }
 
     final List<RelNode> bindings = new ArrayList<>();
-    final Map<RelNode, List<RelNode>> nodeChildren = new HashMap<>();
+    final Map<RelNode, List<RelNode>> nodeChildren = new IdentityHashMap<>();
     boolean match =
         matchOperands(
             rule.getOperand(),
@@ -785,7 +787,8 @@ public class HepPlanner extends AbstractRelOptPlanner {
       RelNode rel) {
     // Check if a transformation already produced a reference
     // to an existing vertex.
-    if (graph.vertexSet().contains(rel)) {
+    if (rel instanceof HepRelVertex
+        && graph.vertexSet().contains(rel)) {
       return (HepRelVertex) rel;
     }
 
@@ -960,7 +963,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
       // Everything is reachable:  no garbage to collect.
       return;
     }
-    final Set<HepRelVertex> sweepSet = new HashSet<>();
+    final Set<HepRelVertex> sweepSet = Sets.newIdentityHashSet();
     for (HepRelVertex vertex : graph.vertexSet()) {
       if (!rootSet.contains(vertex)) {
         sweepSet.add(vertex);
