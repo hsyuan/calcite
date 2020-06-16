@@ -28,7 +28,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.slf4j.Logger;
 
-import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -180,7 +180,7 @@ public abstract class RelOptRuleCall {
    * {@link RelOptRule#any()}. */
   protected void setChildRels(RelNode rel, List<RelNode> inputs) {
     if (nodeInputs.isEmpty()) {
-      nodeInputs = new HashMap<>();
+      nodeInputs = new IdentityHashMap<>();
     }
     nodeInputs.put(rel, inputs);
   }

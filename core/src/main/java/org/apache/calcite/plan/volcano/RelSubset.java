@@ -223,15 +223,17 @@ public class RelSubset extends AbstractRelNode {
     pw.done(input);
   }
 
+  @Override public String toString() {
+    StringBuilder digest = new StringBuilder("Subset#");
+    digest.append(set.id);
+    digest.append('.').append(getTraitSet());
+    return digest.toString();
+  }
+
   @SuppressWarnings("deprecation")
   @Override protected String computeDigest() {
     assert false;
-    StringBuilder digest = new StringBuilder("Subset#");
-    digest.append(set.id);
-    for (RelTrait trait : getTraitSet()) {
-      digest.append('.').append(trait);
-    }
-    return digest.toString();
+    return toString();
   }
 
   @Override public boolean equals(Object obj) {

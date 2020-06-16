@@ -95,9 +95,9 @@ public abstract class AbstractRelNode implements RelNode {
   public AbstractRelNode(RelOptCluster cluster, RelTraitSet traitSet) {
     super();
     assert cluster != null;
+    this.id = NEXT_ID.getAndIncrement();
     this.cluster = cluster;
     this.traitSet = traitSet;
-    this.id = NEXT_ID.getAndIncrement();
   }
 
   //~ Methods ----------------------------------------------------------------
