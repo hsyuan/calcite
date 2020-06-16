@@ -150,7 +150,6 @@ public abstract class TableFunctionScan extends AbstractRelNode {
     final List<RelNode> newInputs = new ArrayList<>(inputs);
     newInputs.set(ordinalInParent, p);
     inputs = ImmutableList.copyOf(newInputs);
-    recomputeDigest();
   }
 
   @Override public double estimateRowCount(RelMetadataQuery mq) {

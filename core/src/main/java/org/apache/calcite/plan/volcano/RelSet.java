@@ -33,6 +33,7 @@ import org.apache.calcite.util.Pair;
 import org.apache.calcite.util.trace.CalciteTrace;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
 
 import org.slf4j.Logger;
 
@@ -84,7 +85,7 @@ class RelSet {
    * The relnodes after applying logical rules and physical rules,
    * before trait propagation and enforcement.
    */
-  final Set<RelNode> seeds = new HashSet<>();
+  final Set<RelNode> seeds = Sets.newIdentityHashSet();
 
   /**
    * Records conversions / enforcements that have happened on the
@@ -414,7 +415,8 @@ class RelSet {
       }
     }
 
-    Set<RelNode> parentRels = new HashSet<>(parents);
+    Set<RelNode> parentRels = Sets.newIdentityHashSet();
+    parentRels.addAll(parents);
     for (RelNode otherRel : otherSet.rels) {
       if (!(otherRel instanceof Spool)
           && !otherRel.isEnforcer()

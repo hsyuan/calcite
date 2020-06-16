@@ -17,7 +17,6 @@
 package org.apache.calcite.rel;
 
 import org.apache.calcite.plan.Convention;
-import org.apache.calcite.plan.Digest;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptNode;
 import org.apache.calcite.plan.RelOptPlanner;
@@ -309,7 +308,18 @@ public interface RelNode extends RelOptNode, Cloneable {
    *
    * @return Digest of this relational expression
    */
-  Digest recomputeDigest();
+  @Deprecated // to be removed before 1.25
+  String recomputeDigest();
+
+  default int computeHash() {
+    throw new RuntimeException(getClass().getName()
+        + "#computeHash() is not implemented.");
+  }
+
+  default void clearHash() {
+    throw new RuntimeException(getClass().getName()
+        + "#clearHash() is not implemented.");
+  }
 
   /**
    * Replaces the <code>ordinalInParent</code><sup>th</sup> input. You must

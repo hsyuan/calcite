@@ -21,7 +21,6 @@ import org.apache.calcite.linq4j.function.Functions;
 import org.apache.calcite.plan.AbstractRelOptPlanner;
 import org.apache.calcite.plan.CommonRelSubExprRule;
 import org.apache.calcite.plan.Context;
-import org.apache.calcite.plan.Digest;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptCostFactory;
 import org.apache.calcite.plan.RelOptCostImpl;
@@ -85,7 +84,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
    * {@link RelDataType} is represented with its field types as {@code List<RelDataType>}.
    * This enables to treat as equal projects that differ in expression names only.
    */
-  private final Map<Digest, HepRelVertex> mapDigestToVertex =
+  private final Map<RelNode, HepRelVertex> mapRelToVertex =
       new HashMap<>();
 
   private int nTransformations;
@@ -804,14 +803,11 @@ public class HepPlanner extends AbstractRelOptPlanner {
       rel = rel.copy(rel.getTraitSet(), newInputs);
       onCopy(oldRel, rel);
     }
-    // Compute digest first time we add to DAG,
-    // otherwise can't get equivVertex for common sub-expression
-    rel.recomputeDigest();
 
     // try to find equivalent rel only if DAG is allowed
     if (!noDag) {
       // Now, check if an equivalent vertex already exists in graph.
-      HepRelVertex equivVertex = mapDigestToVertex.get(rel.getDigest());
+      HepRelVertex equivVertex = mapRelToVertex.get(rel);
       if (equivVertex != null) {
         // Use existing vertex.
         return equivVertex;
@@ -900,9 +896,9 @@ public class HepPlanner extends AbstractRelOptPlanner {
       // reachable from here.
       notifyDiscard(vertex.getCurrentRel());
     }
-    Digest oldKey = vertex.getCurrentRel().getDigest();
-    if (mapDigestToVertex.get(oldKey) == vertex) {
-      mapDigestToVertex.remove(oldKey);
+    RelNode oldKey = vertex.getCurrentRel();
+    if (mapRelToVertex.get(oldKey) == vertex) {
+      mapRelToVertex.remove(oldKey);
     }
     // When a transformation happened in one rule apply, support
     // vertex2 replace vertex1, but the current relNode of
@@ -911,7 +907,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
     // otherwise the digest will be removed wrongly in the mapDigestToVertex
     //  when collectGC
     // so it must update the digest that map to vertex
-    mapDigestToVertex.put(rel.getDigest(), vertex);
+    mapRelToVertex.put(rel, vertex);
     if (rel != vertex.getCurrentRel()) {
       vertex.replaceRel(rel);
     }
@@ -939,7 +935,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
       rel.replaceInput(i, child);
     }
     RelMdUtil.clearCache(rel);
-    rel.recomputeDigest();
+    rel.clearHash();
 
     return rel;
   }
@@ -977,8 +973,8 @@ public class HepPlanner extends AbstractRelOptPlanner {
     graphSizeLastGC = graph.vertexSet().size();
 
     // Clean up digest map too.
-    Iterator<Map.Entry<Digest, HepRelVertex>> digestIter =
-        mapDigestToVertex.entrySet().iterator();
+    Iterator<Map.Entry<RelNode, HepRelVertex>> digestIter =
+        mapRelToVertex.entrySet().iterator();
     while (digestIter.hasNext()) {
       HepRelVertex vertex = digestIter.next().getValue();
       if (sweepSet.contains(vertex)) {

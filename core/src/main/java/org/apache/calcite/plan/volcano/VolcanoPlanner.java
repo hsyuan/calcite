@@ -22,7 +22,6 @@ import org.apache.calcite.plan.AbstractRelOptPlanner;
 import org.apache.calcite.plan.Context;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.ConventionTraitDef;
-import org.apache.calcite.plan.Digest;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptCostFactory;
 import org.apache.calcite.plan.RelOptLattice;
@@ -58,6 +57,7 @@ import org.apache.calcite.util.Util;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.LinkedListMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -100,11 +100,10 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
   final List<RelSet> allSets = new ArrayList<>();
 
   /**
-   * Canonical map from {@link String digest} to the unique
-   * {@link RelNode relational expression} with that digest.
+   * Canonical map from {@link RelNode} to the unique
+   * {@link RelNode} that equals with each other.
    */
-  private final Map<Digest, RelNode> mapDigestToRel =
-      new HashMap<>();
+  private final Map<RelNode, RelNode> relMapper = new HashMap<>();
 
   /**
    * Map each registered expression ({@link RelNode}) to its equivalence set
@@ -125,7 +124,7 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
    * <p>If a RelNode is pruned, all {@link RelOptRuleCall}s using it
    * are ignored, and future RelOptRuleCalls are not queued up.
    */
-  final Set<RelNode> prunedNodes = new HashSet<>();
+  final Set<RelNode> prunedNodes = Sets.newIdentityHashSet();
 
   /**
    * List of all schemas which have been registered.
@@ -379,7 +378,7 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
     }
     this.classOperands.clear();
     this.allSets.clear();
-    this.mapDigestToRel.clear();
+    this.relMapper.clear();
     this.mapRel2Subset.clear();
     this.prunedNodes.clear();
     this.ruleQueue.clear();
@@ -889,13 +888,8 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
    * @param rel Relational expression
    */
   void rename(RelNode rel) {
-    final Digest oldDigest = rel.getDigest();
     if (fixUpInputs(rel)) {
-      final RelNode removed = mapDigestToRel.remove(oldDigest);
-      assert removed == rel;
-      final Digest newDigest = rel.recomputeDigest();
-      LOGGER.trace("Rename #{} from '{}' to '{}'", rel.getId(), oldDigest, newDigest);
-      final RelNode equivRel = mapDigestToRel.put(newDigest, rel);
+      final RelNode equivRel = relMapper.put(rel, rel);
       if (equivRel != null) {
         assert equivRel != rel;
 
@@ -904,7 +898,7 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
         LOGGER.trace("After renaming rel#{} it is now equivalent to rel#{}",
             rel.getId(), equivRel.getId());
 
-        mapDigestToRel.put(newDigest, equivRel);
+        relMapper.put(rel, equivRel);
         checkPruned(equivRel, rel);
 
         RelSubset equivRelSubset = getSubset(equivRel);
@@ -959,7 +953,7 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
     // Is there an equivalent relational expression? (This might have
     // just occurred because the relational expression's child was just
     // found to be equivalent to another set.)
-    RelNode equivRel = mapDigestToRel.get(rel.getDigest());
+    RelNode equivRel = relMapper.get(rel.getDigest());
     if (equivRel != null && equivRel != rel) {
       assert equivRel.getClass() == rel.getClass();
       assert equivRel.getTraitSet().equals(rel.getTraitSet());
@@ -1022,25 +1016,33 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
 
   private boolean fixUpInputs(RelNode rel) {
     List<RelNode> inputs = rel.getInputs();
-    int i = -1;
+    List<RelNode> newInputs = new ArrayList<>(inputs.size());
     int changeCount = 0;
     for (RelNode input : inputs) {
-      ++i;
-      if (input instanceof RelSubset) {
-        final RelSubset subset = (RelSubset) input;
-        RelSubset newSubset = canonize(subset);
-        if (newSubset != subset) {
-          rel.replaceInput(i, newSubset);
-          if (subset.set != newSubset.set) {
-            subset.set.parents.remove(rel);
-            newSubset.set.parents.add(rel);
-          }
-          changeCount++;
+      assert input instanceof RelSubset;
+      final RelSubset subset = (RelSubset) input;
+      RelSubset newSubset = canonize(subset);
+      newInputs.add(newSubset);
+      if (newSubset != subset) {
+        if (subset.set != newSubset.set) {
+          subset.set.parents.remove(rel);
+          newSubset.set.parents.add(rel);
         }
+        changeCount++;
       }
     }
-    RelMdUtil.clearCache(rel);
-    return changeCount > 0;
+
+    if (changeCount > 0) {
+      RelMdUtil.clearCache(rel);
+      RelNode removed = relMapper.remove(rel);
+      assert removed == rel;
+      rel.clearHash();
+      for (int i = 0; i < inputs.size(); i++) {
+        rel.replaceInput(i, newInputs.get(i));
+      }
+      return true;
+    }
+    return false;
   }
 
   private RelSet merge(RelSet set, RelSet set2) {
@@ -1168,8 +1170,7 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
 
     // If it is equivalent to an existing expression, return the set that
     // the equivalent expression belongs to.
-    Digest digest = rel.getDigest();
-    RelNode equivExp = mapDigestToRel.get(digest);
+    RelNode equivExp = relMapper.get(rel);
     if (equivExp == null) {
       // do nothing
     } else if (equivExp == rel) {
@@ -1206,8 +1207,7 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
         // check whether we are now equivalent to an existing
         // expression.
         if (fixUpInputs(rel)) {
-          digest = rel.recomputeDigest();
-          RelNode equivRel = mapDigestToRel.get(digest);
+          RelNode equivRel = relMapper.get(rel);
           if ((equivRel != rel) && (equivRel != null)) {
 
             // make sure this bad rel didn't get into the
@@ -1248,7 +1248,7 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
     final int subsetBeforeCount = set.subsets.size();
     RelSubset subset = addRelToSet(rel, set);
 
-    final RelNode xx = mapDigestToRel.put(digest, rel);
+    final RelNode xx = relMapper.put(rel, rel);
     assert xx == null || xx == rel : rel.getDigest();
 
     LOGGER.trace("Register {} in {}", rel, subset);

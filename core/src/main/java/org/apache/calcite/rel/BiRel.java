@@ -71,7 +71,6 @@ public abstract class BiRel extends AbstractRelNode {
     default:
       throw new IndexOutOfBoundsException("Input " + ordinalInParent);
     }
-    recomputeDigest();
   }
 
   @Override public RelWriter explainTerms(RelWriter pw) {

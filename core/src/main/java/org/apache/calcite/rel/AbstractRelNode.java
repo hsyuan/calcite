@@ -18,7 +18,6 @@ package org.apache.calcite.rel;
 
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.ConventionTraitDef;
-import org.apache.calcite.plan.Digest;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
@@ -27,6 +26,7 @@ import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.core.CorrelationId;
+import org.apache.calcite.rel.hint.Hintable;
 import org.apache.calcite.rel.metadata.Metadata;
 import org.apache.calcite.rel.metadata.MetadataFactory;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
@@ -48,6 +48,7 @@ import org.slf4j.Logger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -69,17 +70,17 @@ public abstract class AbstractRelNode implements RelNode {
    */
   protected RelDataType rowType;
 
-  /**
-   * The digest that uniquely identifies the node.
-   */
-  protected Digest digest;
-
   private final RelOptCluster cluster;
 
   /**
    * unique id of this object -- for debugging
    */
   protected final int id;
+
+  /**
+   * Cache of hash code
+   */
+  private int hash = 0;
 
   /**
    * The RelTraitSet that describes the traits of this RelNode.
@@ -97,8 +98,6 @@ public abstract class AbstractRelNode implements RelNode {
     this.cluster = cluster;
     this.traitSet = traitSet;
     this.id = NEXT_ID.getAndIncrement();
-    this.digest = Digest.initial(this);
-    LOGGER.trace("new {}", digest);
   }
 
   //~ Methods ----------------------------------------------------------------
@@ -329,13 +328,14 @@ public abstract class AbstractRelNode implements RelNode {
     if (!Util.equalShallow(oldInputs, inputs)) {
       r = copy(getTraitSet(), inputs);
     }
-    r.recomputeDigest();
     assert r.isValid(Litmus.THROW, null);
     return r;
   }
 
-  public Digest recomputeDigest() {
-    digest = computeDigest();
+  @Deprecated // to be removed before 1.25
+  @Override public String recomputeDigest() {
+    assert false;
+    String digest = computeDigest();
     assert digest != null : "computeDigest() should be non-null";
     return digest;
   }
@@ -349,18 +349,19 @@ public abstract class AbstractRelNode implements RelNode {
   /** Description, consists of id plus digest */
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    RelOptUtil.appendRelDescription(sb, this);
+    sb.append("rel#").append(id)
+        .append(':').append(getDigest());
     return sb.toString();
   }
 
   /** Description, consists of id plus digest */
-  @Deprecated // to be removed before 2.0
+  @Deprecated // to be removed before 1.25
   public final String getDescription() {
     return this.toString();
   }
 
-  public final Digest getDigest() {
-    return digest;
+  public final String getDigest() {
+    return computeDigest();
   }
 
   public RelOptTable getTable() {
@@ -372,32 +373,55 @@ public abstract class AbstractRelNode implements RelNode {
    *
    * @return Digest
    */
-  protected Digest computeDigest() {
+  @Deprecated // to be removed before 1.25
+  protected String computeDigest() {
     RelDigestWriter rdw = new RelDigestWriter();
     explain(rdw);
     return rdw.digest;
   }
 
-  /**
-   * {@inheritDoc}
-   *
-   * <p>This method (and {@link #hashCode} is intentionally final. We do not want
-   * sub-classes of {@link RelNode} to redefine identity. Various algorithms
-   * (e.g. visitors, planner) can define the identity as meets their needs.
-   */
-  @Override public final boolean equals(Object obj) {
-    return super.equals(obj);
+  @Override public boolean equals(Object obj) {
+    if (this == obj) {
+      return true;
+    }
+    if (this.getClass() != obj.getClass()) {
+      return false;
+    }
+    AbstractRelNode that = (AbstractRelNode) obj;
+    return this.getTraitSet() == that.getTraitSet()
+        && this.getDigestItems().equals(that.getDigestItems())
+        && Pair.right(getRowType().getFieldList()).equals(
+            Pair.right(that.getRowType().getFieldList()))
+        // TODO: let them go to the concrete logical and physical operators
+        // They don't belong here.
+        && (!(that instanceof Hintable)
+            || ((Hintable) this).getHints().equals(
+                ((Hintable) that).getHints()));
   }
 
-  /**
-   * {@inheritDoc}
-   *
-   * <p>This method (and {@link #equals} is intentionally final. We do not want
-   * sub-classes of {@link RelNode} to redefine identity. Various algorithms
-   * (e.g. visitors, planner) can define the identity as meets their needs.
-   */
-  @Override public final int hashCode() {
-    return super.hashCode();
+  @Override public int hashCode() {
+    if (hash == 0) {
+      hash = computeHash();
+    }
+    return hash;
+  }
+
+  @Override public int computeHash() {
+    int hash = Objects.hash(getTraitSet(), getDigestItems(),
+        this instanceof Hintable ? ((Hintable) this).getHints() : null,
+        // TODO: Are they really needed?
+        Pair.right(getRowType().getFieldList()));
+    return hash;
+  }
+
+  @Override public final void clearHash() {
+    hash = 0;
+  }
+
+  private List<Pair<String, Object>> getDigestItems() {
+    RelDigestWriter rdw = new RelDigestWriter();
+    explain(rdw);
+    return rdw.values;
   }
 
   /**
@@ -412,7 +436,7 @@ public abstract class AbstractRelNode implements RelNode {
 
     private final List<Pair<String, Object>> values = new ArrayList<>();
 
-    Digest digest = null;
+    String digest = null;
 
     @Override public void explain(final RelNode rel, final List<Pair<String, Object>> valueList) {
       throw new IllegalStateException("Should not be called for computing digest");
@@ -423,12 +447,37 @@ public abstract class AbstractRelNode implements RelNode {
     }
 
     @Override public RelWriter item(String term, Object value) {
+      if (value.getClass().isArray()) {
+        // We can't call hashCode and equals on Array, so
+        // convert it to String to keep the same behaviour.
+        value = "" + value;
+      }
       values.add(Pair.of(term, value));
       return this;
     }
 
     @Override public RelWriter done(RelNode node) {
-      digest = Digest.create(node, values);
+      StringBuilder sb = new StringBuilder();
+      sb.append(node.getRelTypeName()).append('.')
+          .append(node.getTraitSet()).append('(');
+      int j = 0;
+      for (Pair<String, Object> value : values) {
+        if (j++ > 0) {
+          sb.append(',');
+        }
+        sb.append(value.left);
+        sb.append('=');
+        if (value.right instanceof RelNode) {
+          RelNode input = (RelNode) value.right;
+          sb.append(input.getRelTypeName());
+          sb.append('#');
+          sb.append(input.getId());
+        } else {
+          sb.append(value.right);
+        }
+      }
+      sb.append(')');
+      digest = sb.toString();
       return this;
     }
   }
