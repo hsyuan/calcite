@@ -51,12 +51,12 @@ import org.apache.calcite.util.graph.Graphs;
 import org.apache.calcite.util.graph.TopologicalOrderIterator;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -845,6 +845,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
     for (HepRelVertex parent : parents) {
       RelNode parentRel = parent.getCurrentRel();
       List<RelNode> inputs = parentRel.getInputs();
+//      parentRel = parentRel.copy(parentRel.getTraitSet(), inputs);
       for (int i = 0; i < inputs.size(); ++i) {
         RelNode child = inputs.get(i);
         if (child != discardedVertex) {
@@ -853,6 +854,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
         parentRel.replaceInput(i, preservedVertex);
       }
       clearCache(parent);
+      parentRel.clearHash();
       graph.removeEdge(parent, discardedVertex);
       graph.addEdge(parent, preservedVertex);
       updateVertex(parent, parentRel);
@@ -954,7 +956,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
     LOGGER.trace("collecting garbage");
 
     // Yer basic mark-and-sweep.
-    final Set<HepRelVertex> rootSet = Sets.newIdentityHashSet();
+    final Set<HepRelVertex> rootSet = new HashSet<>();
     if (graph.vertexSet().contains(root)) {
       BreadthFirstIterator.reachable(rootSet, graph, root);
     }
@@ -963,7 +965,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
       // Everything is reachable:  no garbage to collect.
       return;
     }
-    final Set<HepRelVertex> sweepSet = Sets.newIdentityHashSet();
+    final Set<HepRelVertex> sweepSet = new HashSet<>();
     for (HepRelVertex vertex : graph.vertexSet()) {
       if (!rootSet.contains(vertex)) {
         sweepSet.add(vertex);
