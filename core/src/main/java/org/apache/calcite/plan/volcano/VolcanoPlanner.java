@@ -1034,8 +1034,7 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
 
     if (changeCount > 0) {
       RelMdUtil.clearCache(rel);
-      RelNode removed = relMapper.remove(rel);
-      assert removed == rel;
+      relMapper.remove(rel);
       rel.clearHash();
       for (int i = 0; i < inputs.size(); i++) {
         rel.replaceInput(i, newInputs.get(i));

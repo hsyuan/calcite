@@ -62,6 +62,7 @@ public class RelMetadataQueryBase {
   //~ Instance fields --------------------------------------------------------
 
   /** Set of active metadata queries, and cache of previous results. */
+  // TODO: use IdentityHashMap for performance
   public final Table<RelNode, List, Object> map = HashBasedTable.create();
 
   public final JaninoRelMetadataProvider metadataProvider;

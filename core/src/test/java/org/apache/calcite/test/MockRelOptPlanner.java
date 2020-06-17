@@ -138,6 +138,7 @@ public class MockRelOptPlanner extends AbstractRelOptPlanner {
         root = transformationResult;
       } else {
         parent.replaceInput(ordinalInParent, transformationResult);
+        parent.clearHash();
       }
       return true;
     }

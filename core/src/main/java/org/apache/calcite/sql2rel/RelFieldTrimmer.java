@@ -1211,8 +1211,9 @@ public class RelFieldTrimmer implements ReflectiveVisitor {
      */
     public TrimResult(RelNode left, Mapping right) {
       super(left, right);
-      assert right.getTargetCount() == left.getRowType().getFieldCount()
-          : "rowType: " + left.getRowType() + ", mapping: " + right;
+      if (right.getTargetCount() != left.getRowType().getFieldCount()) {
+        throw new AssertionError("rowType: " + left.getRowType() + ", mapping: " + right);
+      }
     }
   }
 }

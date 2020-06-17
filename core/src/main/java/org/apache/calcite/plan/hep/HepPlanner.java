@@ -57,7 +57,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -937,6 +936,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
       child = buildFinalPlan((HepRelVertex) child);
       rel.replaceInput(i, child);
     }
+    // TODO: use IndentityHashMap
     RelMdUtil.clearCache(rel);
     rel.clearHash();
 
@@ -954,7 +954,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
     LOGGER.trace("collecting garbage");
 
     // Yer basic mark-and-sweep.
-    final Set<HepRelVertex> rootSet = new HashSet<>();
+    final Set<HepRelVertex> rootSet = Sets.newIdentityHashSet();
     if (graph.vertexSet().contains(root)) {
       BreadthFirstIterator.reachable(rootSet, graph, root);
     }

@@ -379,6 +379,7 @@ public class RelDecorrelator implements ReflectiveVisitor {
         }
         newInputs.add(frame.r);
         newRel.replaceInput(i, frame.r);
+        newRel.clearHash();
       }
 
       if (!Util.equalShallow(oldInputs, newInputs)) {
@@ -1123,8 +1124,9 @@ public class RelDecorrelator implements ReflectiveVisitor {
       return null;
     }
 
-    assert rel.getRequiredColumns().cardinality()
-        <= rightFrame.corDefOutputs.keySet().size();
+    if (rel.getRequiredColumns().cardinality() > rightFrame.corDefOutputs.keySet().size()) {
+      throw new AssertionError();
+    }
 
     // Change correlator rel into a join.
     // Join all the correlated variables produced by this correlator rel
