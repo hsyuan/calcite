@@ -100,7 +100,7 @@ public class MockRelOptPlanner extends AbstractRelOptPlanner {
   // implement RelOptPlanner
   public RelNode findBestExp() {
     if (rule != null) {
-      matchRecursive(root, null, -1);
+      return matchRecursive(root, null, -1);
     }
     return root;
   }
@@ -114,7 +114,7 @@ public class MockRelOptPlanner extends AbstractRelOptPlanner {
    *                        siblings
    * @return whether match occurred
    */
-  private boolean matchRecursive(
+  private RelNode matchRecursive(
       RelNode rel,
       RelNode parent,
       int ordinalInParent) {
@@ -136,19 +136,22 @@ public class MockRelOptPlanner extends AbstractRelOptPlanner {
     if (transformationResult != null) {
       if (parent == null) {
         root = transformationResult;
+        return root;
       } else {
-        parent.replaceInput(ordinalInParent, transformationResult);
+        final List<RelNode> inputs = parent.getInputs();
+        inputs.set(ordinalInParent, transformationResult);
+        return parent.copy(parent.getTraitSet(), inputs);
       }
-      return true;
     }
 
     List<? extends RelNode> children = rel.getInputs();
     for (int i = 0; i < children.size(); ++i) {
-      if (matchRecursive(children.get(i), rel, i)) {
-        return true;
+      final RelNode n = matchRecursive(children.get(i), rel, i);
+      if (n != null) {
+        return n;
       }
     }
-    return false;
+    return null;
   }
 
   /**

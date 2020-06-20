@@ -889,59 +889,57 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
    * @param rel Relational expression
    */
   void rename(RelNode rel) {
-    final Digest oldDigest = rel.getDigest();
-    if (fixUpInputs(rel)) {
-      final RelNode removed = mapDigestToRel.remove(oldDigest);
-      assert removed == rel;
-      final Digest newDigest = rel.recomputeDigest();
-      LOGGER.trace("Rename #{} from '{}' to '{}'", rel.getId(), oldDigest, newDigest);
-      final RelNode equivRel = mapDigestToRel.put(newDigest, rel);
-      if (equivRel != null) {
-        assert equivRel != rel;
+    final RelNode newRel = fixUpInputs(rel);
+    if (newRel == null) {
+      return;
+    }
+    final Digest newDigest = newRel.getDigest();
+    final RelNode equivRel = mapDigestToRel.put(newDigest, newRel);
+    if (equivRel != null) {
+      assert equivRel != newRel;
 
-        // There's already an equivalent with the same name, and we
-        // just knocked it out. Put it back, and forget about 'rel'.
-        LOGGER.trace("After renaming rel#{} it is now equivalent to rel#{}",
-            rel.getId(), equivRel.getId());
+      // There's already an equivalent with the same name, and we
+      // just knocked it out. Put it back, and forget about 'rel'.
+      LOGGER.trace("After renaming rel#{} it is now equivalent to rel#{}",
+          rel.getId(), equivRel.getId());
 
-        mapDigestToRel.put(newDigest, equivRel);
-        checkPruned(equivRel, rel);
+      mapDigestToRel.put(newDigest, equivRel);
+      checkPruned(equivRel, newRel);
 
-        RelSubset equivRelSubset = getSubset(equivRel);
+      RelSubset equivRelSubset = getSubset(equivRel);
 
-        // Remove back-links from children.
-        for (RelNode input : rel.getInputs()) {
-          ((RelSubset) input).set.parents.remove(rel);
+      // Remove back-links from children.
+      for (RelNode input : rel.getInputs()) {
+        ((RelSubset) input).set.parents.remove(rel);
+      }
+
+      // Remove rel from its subset. (This may leave the subset
+      // empty, but if so, that will be dealt with when the sets
+      // get merged.)
+      final RelSubset subset = mapRel2Subset.put(newRel, equivRelSubset);
+      assert subset != null;
+      boolean existed = subset.set.rels.remove(rel);
+//      assert existed : "rel was not known to its set";
+      final RelSubset equivSubset = getSubset(equivRel);
+      for (RelSubset s : subset.set.subsets) {
+        if (s.best == rel) {
+          Set<RelSubset> activeSet = new HashSet<>();
+          s.best = equivRel;
+
+          // Propagate cost improvement since this potentially would change the subset's best cost
+          s.propagateCostImprovements(
+                  this, equivRel.getCluster().getMetadataQuery(),
+                  equivRel, activeSet);
         }
+      }
 
-        // Remove rel from its subset. (This may leave the subset
-        // empty, but if so, that will be dealt with when the sets
-        // get merged.)
-        final RelSubset subset = mapRel2Subset.put(rel, equivRelSubset);
-        assert subset != null;
-        boolean existed = subset.set.rels.remove(rel);
-        assert existed : "rel was not known to its set";
-        final RelSubset equivSubset = getSubset(equivRel);
-        for (RelSubset s : subset.set.subsets) {
-          if (s.best == rel) {
-            Set<RelSubset> activeSet = new HashSet<>();
-            s.best = equivRel;
-
-            // Propagate cost improvement since this potentially would change the subset's best cost
-            s.propagateCostImprovements(
-                    this, equivRel.getCluster().getMetadataQuery(),
-                    equivRel, activeSet);
-          }
-        }
-
-        if (equivSubset != subset) {
-          // The equivalent relational expression is in a different
-          // subset, therefore the sets are equivalent.
-          assert equivSubset.getTraitSet().equals(
-              subset.getTraitSet());
-          assert equivSubset.set != subset.set;
-          merge(equivSubset.set, subset.set);
-        }
+      if (equivSubset != subset) {
+        // The equivalent relational expression is in a different
+        // subset, therefore the sets are equivalent.
+        assert equivSubset.getTraitSet().equals(
+            subset.getTraitSet());
+        assert equivSubset.set != subset.set;
+        merge(equivSubset.set, subset.set);
       }
     }
   }
@@ -1020,8 +1018,9 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
     }
   }
 
-  private boolean fixUpInputs(RelNode rel) {
+  private RelNode fixUpInputs(final RelNode rel) {
     List<RelNode> inputs = rel.getInputs();
+    List<RelNode> newInputs = new ArrayList<>(inputs);
     int i = -1;
     int changeCount = 0;
     for (RelNode input : inputs) {
@@ -1030,17 +1029,44 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
         final RelSubset subset = (RelSubset) input;
         RelSubset newSubset = canonize(subset);
         if (newSubset != subset) {
-          rel.replaceInput(i, newSubset);
-          if (subset.set != newSubset.set) {
-            subset.set.parents.remove(rel);
-            newSubset.set.parents.add(rel);
-          }
+          newInputs.set(i, newSubset);
+//          if (subset.set != newSubset.set) {
+//            subset.set.parents.remove(rel);
+//            newSubset.set.parents.add(rel);
+//          }
           changeCount++;
         }
       }
     }
+    if (changeCount == 0) {
+      return null;
+    }
+
+    // the old rel is not valid anymore, so clear the metadata cache,
+    // and obsolete it by marking it pruned.
     RelMdUtil.clearCache(rel);
-    return changeCount > 0;
+    prunedNodes.add(rel);
+    final RelSubset subset = mapRel2Subset.remove(rel);
+//    subset.set.obliterateRelNode(rel);
+    subset.set.rels.remove(rel);
+    final RelNode removed = mapDigestToRel.remove(rel.getDigest());
+    assert removed == rel;
+
+    final RelNode newRel = rel.copy(rel.getTraitSet(), newInputs);
+    final Digest newDigest = newRel.recomputeDigest();
+    mapRel2Subset.put(newRel, subset);
+    subset.set.addInternal(newRel);
+
+    for (RelNode input : inputs) {
+      final RelSubset ss = (RelSubset) input;
+      RelSubset newSubset = canonize(ss);
+      ss.set.parents.remove(rel);
+      newSubset.set.parents.add(newRel);
+    }
+
+    LOGGER.trace("Rename from '#{}:{}' to '#{}:{}'",
+        rel.getId(), rel.getDigest(), newRel.getId(), newDigest);
+    return newRel;
   }
 
   private RelSet merge(RelSet set, RelSet set2) {
@@ -1205,10 +1231,12 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
         // we're not registered yet, we won't have been informed. So
         // check whether we are now equivalent to an existing
         // expression.
-        if (fixUpInputs(rel)) {
-          digest = rel.recomputeDigest();
-          RelNode equivRel = mapDigestToRel.get(digest);
-          if ((equivRel != rel) && (equivRel != null)) {
+        final RelNode newRel = fixUpInputs(rel);
+        if (newRel != null) {
+          RelNode equivRel = mapDigestToRel.get(newRel.getDigest());
+          if (equivRel == null) {
+            mapDigestToRel.put(newRel.getDigest(), newRel);
+          } else if (equivRel != rel) {
 
             // make sure this bad rel didn't get into the
             // set in any way (fixupInputs will do this but it

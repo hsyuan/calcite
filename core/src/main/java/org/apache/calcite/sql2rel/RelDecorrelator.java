@@ -378,7 +378,7 @@ public class RelDecorrelator implements ReflectiveVisitor {
           return null;
         }
         newInputs.add(frame.r);
-        newRel.replaceInput(i, frame.r);
+//        newRel.replaceInput(i, frame.r);
       }
 
       if (!Util.equalShallow(oldInputs, newInputs)) {

@@ -847,16 +847,18 @@ public class HepPlanner extends AbstractRelOptPlanner {
     for (HepRelVertex parent : parents) {
       RelNode parentRel = parent.getCurrentRel();
       List<RelNode> inputs = parentRel.getInputs();
+      List<RelNode> newInputs = new ArrayList<>(inputs);
       for (int i = 0; i < inputs.size(); ++i) {
         RelNode child = inputs.get(i);
         if (child != discardedVertex) {
           continue;
         }
-        parentRel.replaceInput(i, preservedVertex);
+        newInputs.set(i, preservedVertex);
       }
       clearCache(parent);
       graph.removeEdge(parent, discardedVertex);
       graph.addEdge(parent, preservedVertex);
+      parentRel = parentRel.copy(parentRel.getTraitSet(), newInputs);
       updateVertex(parent, parentRel);
     }
 
@@ -929,6 +931,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
     // Recursively process children, replacing this rel's inputs
     // with corresponding child rels.
     List<RelNode> inputs = rel.getInputs();
+    List<RelNode> newInputs = new ArrayList<>(inputs);
     for (int i = 0; i < inputs.size(); ++i) {
       RelNode child = inputs.get(i);
       if (!(child instanceof HepRelVertex)) {
@@ -936,12 +939,13 @@ public class HepPlanner extends AbstractRelOptPlanner {
         continue;
       }
       child = buildFinalPlan((HepRelVertex) child);
-      rel.replaceInput(i, child);
+      newInputs.set(i, child);
     }
     RelMdUtil.clearCache(rel);
-    rel.recomputeDigest();
+    RelNode newRel = rel.copy(rel.getTraitSet(), newInputs);
+    newRel.recomputeDigest();
 
-    return rel;
+    return newRel;
   }
 
   private void collectGarbage() {

@@ -1029,11 +1029,6 @@ class RelToSqlConverterTest {
     assertThat(newAggregate.getRowType().getFieldNames().toString(),
         is("[D2, emps.count]"));
 
-    // Change filter's input. Its row type does not change.
-    filter.replaceInput(0, newAggregate);
-    assertThat(filter.getRowType().getFieldNames().toString(),
-        is("[D, emps.count]"));
-
     final RelNode root =
         builder.push(filter)
             .project(builder.alias(builder.field("D"), "emps.deptno"))

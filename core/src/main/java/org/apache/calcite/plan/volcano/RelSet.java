@@ -478,7 +478,10 @@ class RelSet {
     // it were newly registered.  (This may cause rules which have fired
     // once to fire again.)
     for (RelNode rel : rels) {
-      assert planner.getSet(rel) == this;
+      RelSet s = planner.getSet(rel);
+      if (s != this) {
+        throw new AssertionError();
+      }
       planner.fireRules(rel);
     }
     // Fire rule match on subsets as well

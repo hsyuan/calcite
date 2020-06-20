@@ -579,13 +579,12 @@ public class RelStructuredTypeFlattener implements ReflectiveVisitor {
   }
 
   public void rewriteGeneric(RelNode rel) {
-    RelNode newRel = rel.copy(rel.getTraitSet(), rel.getInputs());
     List<RelNode> oldInputs = rel.getInputs();
+    List<RelNode> newInputs = new ArrayList<>();
     for (int i = 0; i < oldInputs.size(); ++i) {
-      newRel.replaceInput(
-          i,
-          getNewForOldRel(oldInputs.get(i)));
+      newInputs.add(getNewForOldRel(oldInputs.get(i)));
     }
+    RelNode newRel = rel.copy(rel.getTraitSet(), newInputs);
     setNewForOldRel(rel, newRel);
   }
 
